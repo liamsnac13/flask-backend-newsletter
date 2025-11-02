@@ -8,71 +8,76 @@ st.set_page_config(
     page_icon="📬"
 )
 
+# ----------------------- BOUTON RECHARGER -----------------------
+if st.button("🔄 Recharger la dernière newsletter"):
+    st.rerun()
+
 st.markdown(
     "<h1 style='color: #8b40ff; font-family: sans-serif;'>Validation de la Newsletter</h1>",
     unsafe_allow_html=True
 )
 st.markdown("---")
 
-# ----------------------- SIMULATION DES DONNÉES -----------------------
-# En vrai, tu récupèreras ça depuis n8n
-data = {
-    "titre": "Révolution Numérique : Low/No Code et IA en Marche !",
-    "introduction": "Plongée dans l'univers des nouvelles technologies où automatismes, low/no code, et intelligences artificielles redéfinissent les règles du jeu.",
-    "paragraphe_1_titre": "Explosion des Intégrations Hybrides",
-    "paragraphe_1_contenu": "Les solutions no-code comme Make, Zapier, et Webflow...",
-    "paragraphe_2_titre": "L'Ère de l'IA Générative",
-    "paragraphe_2_contenu": "L'intelligence artificielle, et notamment ChatGPT...",
-    "paragraphe_3_titre": "Nouvelle Gouvernance Technologique",
-    "paragraphe_3_contenu": "L'émergence de rôles comme les 'prompt engineers'...",
-    "paragraphe_4_titre": "Démocratisation Numérique",
-    "paragraphe_4_contenu": "Avec l'avènement du no-code et des API...",
-    "paragraphe_5_titre": "Appel à l'Action",
-    "paragraphe_5_contenu": "Explorez ces outils et transformations..."
-}
+# ----------------------- CHARGEMENT DES DONNÉES -----------------------
+try:
+    res = requests.get("https://web-production-54730.up.railway.app/newsletter")
+    if res.status_code == 200:
+        data = res.json()[0]["output"]  
+    else:
+        st.error("❌ Impossible de charger la newsletter.")
+        st.stop()
+except Exception as e:
+    st.error(f"❌ Erreur de connexion : {e}")
+    st.stop()
 
-# ----------------------- AFFICHAGE PARAGRAPHES + FEEDBACK -----------------------
+# ----------------------- STOCKAGE DU FEEDBACK -----------------------
+feedbacks = {}
 
-feedbacks = {}  # dictionnaire pour stocker les retours
-
-# --- TITRE ET INTRODUCTION ---
+# ---------------- TITRE + INTRODUCTION ----------------
 col1, col2 = st.columns([5, 2])
 
 with col1:
-    st.markdown(f"<h2>{data['titre']}</h2>", unsafe_allow_html=True)
-    st.write(data['introduction'])
+    st.markdown(f"<h2>{data.get('titre', '')}</h2>", unsafe_allow_html=True)
+    st.write(data.get("introduction", ""))
 
 with col2:
-    feedback_titre = st.text_area("💬 Feedback sur le titre et l’introduction", key="feedback_intro", height=150)
+    feedback_intro = st.text_area("💬 Feedback sur le titre et l’introduction", key="feedback_intro", height=150)
+    feedbacks["intro_titre"] = feedback_intro
 
-feedbacks["intro_titre"] = feedback_titre
+st.markdown("<hr style='margin:30px 0;'>", unsafe_allow_html=True)
 
-st.markdown("<div style='margin-top:30px; border-top: 1px solid #444;'></div>", unsafe_allow_html=True)
-
-# -- PRAGRAPHES --
+# ---------------- PARAGRAPHES DYNAMIQUES ----------------
 for i in range(1, 6):
-    titre = data[f"paragraphe_{i}_titre"]
-    contenu = data[f"paragraphe_{i}_contenu"]
-    
-    col1, col2 = st.columns([5, 2])
+    titre_key = f"paragraphe_{i}_titre"
+    contenu_key = f"paragraphe_{i}_contenu"
 
-    with col1:
-        st.markdown(f"<h4>{titre}</h4>", unsafe_allow_html=True)
-        st.write(contenu)
+    if titre_key in data and contenu_key in data:
+        col1, col2 = st.columns([5, 2])
 
-    with col2:
-        feedback = st.text_area(f"💬 Feedback paragraphe {i}", key=f"feedback_{i}", height=120)
-        feedbacks[f"paragraphe_{i}"] = feedback
+        with col1:
+            st.markdown(f"<h4>{data[titre_key]}</h4>", unsafe_allow_html=True)
+            st.write(data[contenu_key])
 
-    st.markdown("<div style='margin-top:30px; border-top: 1px solid #444;'></div>", unsafe_allow_html=True)
+        with col2:
+            feedback = st.text_area(f"💬 Feedback paragraphe {i}", key=f"feedback_{i}", height=120)
+            feedbacks[f"paragraphe_{i}"] = feedback
 
-st.markdown("---")
+        st.markdown("<hr style='margin:30px 0;'>", unsafe_allow_html=True)
 
-# ----------------------- BOUTON GLOBAL -----------------------
+# ----------------------- ENVOI FINAL -----------------------
+st.markdown("## ✅ Envoi global")
+
 if st.button("📩 Envoyer le feedback global"):
     if any(val.strip() for val in feedbacks.values()):
-        # Ici tu peux envoyer à n8n via requests.post(url, json=feedbacks)
-        # Exemple : requests.post("https://n8n-webhook-url", json=feedbacks)
-        st.success("✅ Tous les feedbacks ont été envoyés, attends un peu avant de voir la version finale !")
+        n8n_webhook = "https://n8n-your-url.com/webhook/newsletter-feedback"  # <-- remplace par le tien
+
+        try:
+            response = requests.post(n8n_webhook, json=feedbacks)
+            if response.status_code == 200:
+                st.success("✅ Feedback envoyé avec succès à n8n !")
+            else:
+                st.warning("⚠️ Problème lors de l'envoi vers n8n.")
+        except Exception as e:
+            st.error(f"❌ Erreur lors de l'envoi : {e}")
     else:
         st.success("✅ Aucun commentaire ajouté. Validation simple envoyée.")
